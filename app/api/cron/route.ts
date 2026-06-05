@@ -80,13 +80,11 @@ export async function GET(req: Request) {
       // Alert logic
       if ((newStatus === 'offline' || newStatus === 'error') && webhookUrl && !alertSent) {
         const downtime = result.timestamp - (offlineSince || result.timestamp);
-        const delay = site.alertDelayMs || 0;
+        const delay = 10 * 60 * 1000; // Hardcoded 10 minutes (600,000 ms)
         
         if (downtime >= delay) {
           alertSent = true;
-          const downtimeMinutes = Math.floor(downtime / 60000);
-          const delayText = downtimeMinutes > 0 ? ` for over ${downtimeMinutes} minute(s)` : '';
-          const alertMessage = `🚨 *Alert*: Website *${site.name}* (${site.url}) has been offline${delayText}.`;
+          const alertMessage = `🚨 *Alert*: Website *${site.name}* (${site.url}) has been offline for 10 minutes.`;
           
           fetch(webhookUrl, {
             method: 'POST',
