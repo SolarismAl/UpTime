@@ -6,10 +6,16 @@ import { Download, Sparkles, Trash2, ArrowRight } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import toast from 'react-hot-toast';
 
+interface AnalysisData {
+  summary: string;
+  riskLevel: string;
+  troubleshootingSteps: string[];
+}
+
 export default function LogsPage() {
   const incidents = useMonitoringStore((state) => state.incidents);
   const clearIncidents = useMonitoringStore((state) => state.clearIncidents);
-  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
@@ -62,8 +68,7 @@ export default function LogsPage() {
       toast.success('Analysis complete', { id: toastId });
     } catch (error) {
       console.error(error);
-      setAnalysis('Failed to generate analysis. Please try again later.');
-      toast.error('Analysis failed', { id: toastId });
+      toast.error('Analysis failed. Please try again later.', { id: toastId });
     } finally {
       setIsAnalyzing(false);
     }
@@ -111,16 +116,36 @@ export default function LogsPage() {
         </div>
 
         {analysis && (
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 mb-8">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 mb-8 shadow-sm">
             <h2 className="text-lg font-medium text-indigo-900 mb-4 flex items-center gap-2">
               <Sparkles className="w-5 h-5" />
               AI Insights
             </h2>
-            <div className="prose prose-indigo max-w-none text-sm text-zinc-700">
-              {/* Simple markdown rendering for the AI response */}
-              {analysis.split('\n').map((line, i) => (
-                <p key={i} className="mb-2">{line}</p>
-              ))}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-indigo-800 uppercase tracking-wider mb-1">Summary</h3>
+                <p className="text-sm text-zinc-700">{analysis.summary}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-indigo-800 uppercase tracking-wider mb-1">Risk Level</h3>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  analysis.riskLevel.toLowerCase().includes('high') ? 'bg-red-100 text-red-800' :
+                  analysis.riskLevel.toLowerCase().includes('medium') ? 'bg-amber-100 text-amber-800' :
+                  'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {analysis.riskLevel}
+                </span>
+              </div>
+              {analysis.troubleshootingSteps && analysis.troubleshootingSteps.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-indigo-800 uppercase tracking-wider mb-1">Troubleshooting</h3>
+                  <ul className="list-disc list-inside text-sm text-zinc-700 space-y-1">
+                    {analysis.troubleshootingSteps.map((step, i) => (
+                      <li key={i}>{step}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         )}

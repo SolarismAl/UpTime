@@ -1,85 +1,56 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { Website, Incident, Status, CheckResult } from '../types';
+import { Website, Incident, AppState } from '../types';
+import { io, Socket } from 'socket.io-client';
 
 interface MonitoringState {
   websites: Website[];
   incidents: Incident[];
-  addWebsite: (name: string, url: string) => void;
-  removeWebsite: (id: string) => void;
-  updateWebsiteStatus: (id: string, result: CheckResult) => void;
-  clearIncidents: () => void;
+  webhookUrl: string;
+  socket: Socket | null;
+  connectSocket: () => void;
+  syncState: (state: AppState) => void;
+  addWebsite: (name: string, url: string, expectedStatus?: number, timeout?: number, keyword?: string, alertDelayMs?: number) => Promise<void>;
+  removeWebsite: (id: string) => Promise<void>;
+  setWebhookUrl: (url: string) => Promise<void>;
+  clearIncidents: () => void; // Keeping for compatibility with UI
 }
 
-const MAX_HISTORY = 100;
-
 export const useMonitoringStore = create<MonitoringState>()(
-  persist(
-    (set) => ({
-      websites: [],
-      incidents: [],
-      addWebsite: (name, url) =>
-        set((state) => ({
-          websites: [
-            ...state.websites,
-            {
-              id: crypto.randomUUID(),
-              name,
-              url,
-              status: 'checking',
-              lastChecked: null,
-              history: [],
-            },
-          ],
-        })),
-      removeWebsite: (id) =>
-        set((state) => ({
-          websites: state.websites.filter((w) => w.id !== id),
-          incidents: state.incidents.filter((i) => i.websiteId !== id),
-        })),
-      updateWebsiteStatus: (id, result) =>
-        set((state) => {
-          const website = state.websites.find((w) => w.id === id);
-          if (!website) return state;
-
-          const previousStatus = website.status;
-          const newStatus = result.status;
-          const hasStatusChanged = previousStatus !== newStatus && previousStatus !== 'checking';
-
-          const newHistory = [...website.history, result].slice(-MAX_HISTORY);
-
-          const updatedWebsite: Website = {
-            ...website,
-            status: newStatus,
-            lastChecked: result.timestamp,
-            history: newHistory,
-          };
-
-          const updatedWebsites = state.websites.map((w) => (w.id === id ? updatedWebsite : w));
-
-          let updatedIncidents = state.incidents;
-          if (hasStatusChanged) {
-            const newIncident: Incident = {
-              id: crypto.randomUUID(),
-              websiteId: website.id,
-              websiteName: website.name,
-              timestamp: result.timestamp,
-              previousStatus,
-              newStatus,
-              responseTime: result.responseTime,
-            };
-            updatedIncidents = [newIncident, ...state.incidents];
-          }
-
-          return {
-            websites: updatedWebsites,
-            incidents: updatedIncidents,
-          };
-        }),
-      clearIncidents: () => set({ incidents: [] }),
+  (set, get) => ({
+    websites: [],
+    incidents: [],
+    webhookUrl: '',
+    socket: null,
+    connectSocket: () => {
+      if (get().socket) return;
+      const socket = io();
+      socket.on('state_sync', (state: AppState) => {
+        get().syncState(state);
+      });
+      set({ socket });
+    },
+    syncState: (state) => set({
+      websites: state.websites || [],
+      incidents: state.incidents || [],
+      webhookUrl: state.webhookUrl || '',
     }),
-    {
-      name: 'uptime-sentinel-storage',
-    }
-  )
+    addWebsite: async (name, url, expectedStatus, timeout, keyword, alertDelayMs) => {
+      await fetch('/api/websites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, url, expectedStatus, timeout, keyword, alertDelayMs })
+      });
+    },
+    removeWebsite: async (id) => {
+      await fetch(`/api/websites?id=${id}`, { method: 'DELETE' });
+    },
+    setWebhookUrl: async (url) => {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl: url })
+      });
+    },
+    clearIncidents: () => set({ incidents: [] }), // We should ideally add a backend route for this, but local clear is fine for MVP
+  })
 );

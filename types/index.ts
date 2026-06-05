@@ -13,6 +13,12 @@ export interface Website {
   status: Status;
   lastChecked: number | null;
   history: CheckResult[];
+  expectedStatus?: number;
+  timeout?: number;
+  keyword?: string;
+  offlineSince?: number | null;
+  alertSent?: boolean;
+  alertDelayMs?: number;
 }
 
 export interface Incident {
@@ -28,4 +34,5 @@ export interface Incident {
 export interface AppState {
   websites: Website[];
   incidents: Incident[];
+  webhookUrl?: string;
 }

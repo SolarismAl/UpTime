@@ -2,14 +2,18 @@
 
 import { useState } from 'react';
 import { useMonitoringStore } from '../../hooks/useMonitoring';
-import { Settings as SettingsIcon, Database, AlertTriangle } from 'lucide-react';
+import { Settings as SettingsIcon, Database, AlertTriangle, BellRing } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
   const websites = useMonitoringStore((state) => state.websites);
   const incidents = useMonitoringStore((state) => state.incidents);
+  const webhookUrl = useMonitoringStore((state) => state.webhookUrl);
+  const setWebhookUrl = useMonitoringStore((state) => state.setWebhookUrl);
+  
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [localWebhookUrl, setLocalWebhookUrl] = useState(webhookUrl || '');
 
   const handleClearData = () => {
     localStorage.removeItem('uptime-sentinel-storage');
@@ -17,6 +21,12 @@ export default function SettingsPage() {
     setTimeout(() => {
       window.location.reload();
     }, 1000);
+  };
+
+  const handleSaveWebhook = (e: React.FormEvent) => {
+    e.preventDefault();
+    setWebhookUrl(localWebhookUrl);
+    toast.success('Webhook settings saved');
   };
 
   return (
@@ -31,6 +41,39 @@ export default function SettingsPage() {
         </div>
 
         <div className="grid gap-6 max-w-2xl">
+          <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
+            <h2 className="text-lg font-medium text-zinc-900 flex items-center gap-2 mb-4">
+              <BellRing className="w-5 h-5 text-zinc-500" />
+              Alerting & Notifications
+            </h2>
+            
+            <form onSubmit={handleSaveWebhook} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-900 mb-1">
+                  Discord/Slack Webhook URL
+                </label>
+                <p className="text-xs text-zinc-500 mb-2">
+                  Get notified instantly when a monitor goes offline or encounters an error.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={localWebhookUrl}
+                    onChange={(e) => setLocalWebhookUrl(e.target.value)}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="flex-1 bg-white border border-zinc-300 rounded-lg px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono text-sm"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
           <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
             <h2 className="text-lg font-medium text-zinc-900 flex items-center gap-2 mb-4">
               <Database className="w-5 h-5 text-zinc-500" />
