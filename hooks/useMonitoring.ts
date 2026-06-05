@@ -1,14 +1,14 @@
 import { create } from 'zustand';
 import { Website, Incident, AppState } from '../types';
-import { io, Socket } from 'socket.io-client';
+import { collection, doc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface MonitoringState {
   websites: Website[];
   incidents: Incident[];
   webhookUrl: string;
-  socket: Socket | null;
-  connectSocket: () => void;
-  syncState: (state: AppState) => void;
+  isFirebaseConnected: boolean;
+  initializeListeners: () => void;
   addWebsite: (name: string, url: string, expectedStatus?: number, timeout?: number, keyword?: string, alertDelayMs?: number) => Promise<void>;
   removeWebsite: (id: string) => Promise<void>;
   setWebhookUrl: (url: string) => Promise<void>;
@@ -20,20 +20,32 @@ export const useMonitoringStore = create<MonitoringState>()(
     websites: [],
     incidents: [],
     webhookUrl: '',
-    socket: null,
-    connectSocket: () => {
-      if (get().socket) return;
-      const socket = io();
-      socket.on('state_sync', (state: AppState) => {
-        get().syncState(state);
+    isFirebaseConnected: false,
+    initializeListeners: () => {
+      if (!db || get().isFirebaseConnected) return;
+      
+      set({ isFirebaseConnected: true });
+
+      // Listen to websites
+      onSnapshot(collection(db, 'websites'), (snapshot) => {
+        const websites = snapshot.docs.map(doc => doc.data() as Website);
+        set({ websites });
       });
-      set({ socket });
+
+      // Listen to incidents (last 100)
+      const incidentsQuery = query(collection(db, 'incidents'), orderBy('timestamp', 'desc'), limit(100));
+      onSnapshot(incidentsQuery, (snapshot) => {
+        const incidents = snapshot.docs.map(doc => doc.data() as Incident);
+        set({ incidents });
+      });
+
+      // Listen to settings
+      onSnapshot(doc(db, 'settings', 'global'), (docSnap) => {
+        if (docSnap.exists()) {
+          set({ webhookUrl: docSnap.data().webhookUrl || '' });
+        }
+      });
     },
-    syncState: (state) => set({
-      websites: state.websites || [],
-      incidents: state.incidents || [],
-      webhookUrl: state.webhookUrl || '',
-    }),
     addWebsite: async (name, url, expectedStatus, timeout, keyword, alertDelayMs) => {
       await fetch('/api/websites', {
         method: 'POST',

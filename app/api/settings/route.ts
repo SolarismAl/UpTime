@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
-const db = require('../../../lib/db');
+import { adminDb } from '../../../lib/firebase-admin';
 
 export async function POST(req: Request) {
-  const { webhookUrl } = await req.json();
-  db.updateWebhook(webhookUrl);
-  return NextResponse.json({ success: true });
+  try {
+    const { webhookUrl } = await req.json();
+    await adminDb.collection('settings').doc('global').set({ webhookUrl }, { merge: true });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
